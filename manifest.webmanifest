@@ -1,0 +1,16 @@
+{
+  "name": "เก็บใบฟ้า",
+  "short_name": "เก็บใบฟ้า",
+  "description": "ถ่ายสำเนาไปรษณีย์ตอบรับ ทำเป็น PDF และอัปโหลดเข้า OneDrive",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f5f9",
+  "theme_color": "#1565c0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

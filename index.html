@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1565c0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>เก็บใบฟ้า</title>
+<style>
+  :root { --blue:#1565c0; --bg:#f2f5f9; --card:#fff; --line:#d5dbe3; --text:#1c2733; --mute:#66727f; --ok:#1b7f3b; --warn:#b26a00; --err:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif; font-size:17px; background:var(--bg); color:var(--text); }
+  header { background:var(--blue); color:#fff; padding:14px 16px; font-size:20px; font-weight:700; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:5; }
+  #net { font-size:13px; font-weight:400; opacity:.9; }
+  main { padding:14px 14px 96px; max-width:640px; margin:0 auto; }
+  section[hidden] { display:none; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:14px; color:var(--mute); margin:10px 0 4px; }
+  label:first-child { margin-top:0; }
+  input[type=text], input[type=search], select { width:100%; padding:12px; font:inherit; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); }
+  button { font:inherit; border:0; border-radius:10px; padding:13px 14px; background:#e3e9f1; color:var(--text); cursor:pointer; }
+  button.primary { background:var(--blue); color:#fff; font-weight:700; }
+  button.big { width:100%; padding:16px; font-size:18px; }
+  button.small { padding:8px 12px; font-size:15px; }
+  button.danger { color:var(--err); }
+  button:disabled { opacity:.5; }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  .hint { font-size:14px; color:var(--mute); margin:6px 0 0; }
+  #thumbs { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  #thumbs:empty { display:none; }
+  .thumb { border:1px solid var(--line); border-radius:8px; padding:6px; background:#fafbfc; }
+  .thumb canvas { width:100%; display:block; border-radius:4px; }
+  .thumb .cap { font-size:13px; color:var(--mute); margin:4px 0; }
+  .thumb .row { gap:6px; }
+  #fname { font-size:14px; word-break:break-all; background:#eef3fa; border-radius:8px; padding:10px; margin-top:10px; }
+  .rec { border-bottom:1px solid var(--line); padding:12px 0; }
+  .rec:last-child { border-bottom:0; }
+  .rec .name { font-weight:600; word-break:break-all; }
+  .rec .meta { font-size:14px; color:var(--mute); margin:3px 0 8px; }
+  .rec .acts { display:flex; flex-wrap:wrap; gap:6px; }
+  .badge { display:inline-block; font-size:13px; padding:2px 8px; border-radius:99px; color:#fff; }
+  .badge.uploaded { background:var(--ok); } .badge.pending { background:var(--warn); } .badge.error { background:var(--err); }
+  nav { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line); display:flex; padding-bottom:env(safe-area-inset-bottom); z-index:5; }
+  nav button { flex:1; background:none; border-radius:0; padding:14px 4px; color:var(--mute); }
+  nav button.on { color:var(--blue); font-weight:700; box-shadow:inset 0 3px 0 var(--blue); }
+  #editor { position:fixed; inset:0; background:#111; z-index:20; display:flex; flex-direction:column; }
+  #editor[hidden] { display:none; }
+  #editor .top { color:#fff; padding:10px 14px; font-size:15px; }
+  #ed-wrap { flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  #ed-canvas { touch-action:none; }
+  #editor .bar { display:flex; gap:8px; padding:10px; align-items:center; flex-wrap:wrap; background:#222; padding-bottom:calc(10px + env(safe-area-inset-bottom)); }
+  #editor .bar label { color:#fff; margin:0; font-size:15px; display:flex; align-items:center; gap:6px; flex:1; }
+  #toast { position:fixed; left:14px; right:14px; bottom:76px; background:#222; color:#fff; padding:12px 14px; border-radius:10px; z-index:30; text-align:center; }
+  #toast[hidden] { display:none; }
+  code { background:#eef3fa; padding:2px 6px; border-radius:4px; word-break:break-all; font-size:14px; }
+</style>
+</head>
+<body>
+<header><span>เก็บใบฟ้า</span><span id="net"></span></header>
+<main>
+  <section id="v-capture">
+    <div class="card">
+      <label for="f-case">เลขคดี / เลขสำนวน</label>
+      <input type="text" id="f-case" placeholder="เช่น 123/2569" autocomplete="off">
+      <label for="f-rcpt">ชื่อผู้รับ</label>
+      <input type="text" id="f-rcpt" placeholder="เช่น สำนักงาน สคบ." autocomplete="off">
+      <label for="f-track">เลข EMS / เลขพัสดุ (ไม่บังคับ)</label>
+      <input type="text" id="f-track" placeholder="เช่น EB123456789TH" autocomplete="off" autocapitalize="characters">
+    </div>
+    <div class="card">
+      <div class="row">
+        <button class="primary" id="b-cam">📷 ถ่ายรูป</button>
+        <button id="b-pick">🖼 เลือกรูป</button>
+      </div>
+      <p class="hint">ถ่ายด้านหน้าและด้านหลังได้ทีละรูป แอพหาขอบใบฟ้าให้อัตโนมัติ กด "ปรับ" เพื่อแก้มุมเอง</p>
+      <input type="file" id="in-cam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="in-pick" accept="image/*" multiple hidden>
+      <div id="thumbs"></div>
+    </div>
+    <div class="card">
+      <label for="f-per">จำนวนรูปต่อหน้า A4</label>
+      <select id="f-per">
+        <option value="1">1 รูป</option>
+        <option value="2" selected>2 รูป (หน้า–หลัง บนล่าง)</option>
+        <option value="3">3 รูป</option>
+        <option value="4">4 รูป (2×2)</option>
+      </select>
+      <div id="fname"></div>
+    </div>
+    <button class="primary big" id="b-save">สร้าง PDF และอัปโหลด</button>
+  </section>
+
+  <section id="v-list" hidden>
+    <div class="card">
+      <input type="search" id="q" placeholder="ค้นหา เลขคดี / ชื่อผู้รับ / เลขพัสดุ">
+      <div id="recs"></div>
+    </div>
+  </section>
+
+  <section id="v-settings" hidden>
+    <div class="card">
+      <b>บัญชี OneDrive</b>
+      <p id="acct" class="hint"></p>
+      <div class="row">
+        <button class="primary" id="b-login">เข้าสู่ระบบ OneDrive</button>
+        <button id="b-logout">ออกจากระบบ</button>
+      </div>
+    </div>
+    <div class="card">
+      <label for="s-client">Client ID (จากการลงทะเบียนแอพกับ Microsoft)</label>
+      <input type="text" id="s-client" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+      <label for="s-root">โฟลเดอร์หลักใน OneDrive</label>
+      <input type="text" id="s-root" placeholder="ใบฟ้า" autocomplete="off">
+      <p class="hint">Redirect URI ที่ต้องใส่ตอนลงทะเบียน: <code id="s-redirect"></code></p>
+      <button class="primary big" id="b-savecfg" style="margin-top:12px">บันทึกการตั้งค่า</button>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-v="capture" class="on">เก็บใบฟ้า</button>
+  <button data-v="list">ทะเบียน</button>
+  <button data-v="settings">ตั้งค่า</button>
+</nav>
+
+<div id="editor" hidden>
+  <div class="top">ลากจุดสีส้มทั้ง 4 ให้ตรงมุมใบฟ้า</div>
+  <div id="ed-wrap"><canvas id="ed-canvas"></canvas></div>
+  <div class="bar">
+    <button class="small" id="ed-rot">⟳ หมุน</button>
+    <button class="small" id="ed-auto">หาขอบอัตโนมัติ</button>
+    <button class="small" id="ed-full">ทั้งรูป</button>
+    <label><input type="checkbox" id="ed-enh"> เพิ่มความคมชัด</label>
+    <button class="small" id="ed-cancel">ยกเลิก</button>
+    <button class="small primary" id="ed-ok">ตกลง</button>
+  </div>
+</div>
+<div id="toast" hidden></div>
+
+<script src="msal-browser.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
