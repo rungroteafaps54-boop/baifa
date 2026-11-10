@@ -332,8 +332,8 @@ async function saveRecord() {
     await dbPut(rec);
     LS.set('lastCase', caseNo);
     items = []; renderThumbs(); $('#f-rcpt').value = ''; $('#f-track').value = ''; renderFileName();
-    toast('สร้าง PDF แล้ว กำลังอัปโหลด…');
-    await uploadRecord(rec, true);
+    if (account()) { toast('สร้าง PDF แล้ว กำลังอัปโหลด…'); await uploadRecord(rec, true); }
+    else await shareRecord(rec, true); // ไม่ได้ผูก OneDrive: เปิดเมนูแชร์ของ Android ให้เลือก OneDrive
     show('list');
   } catch (e) { toast('สร้าง PDF ไม่สำเร็จ: ' + e.message, 6000); }
   btn.disabled = false; btn.textContent = 'สร้าง PDF และอัปโหลด';
@@ -378,11 +378,11 @@ let syncing = false;
 async function syncPending() {
   if (syncing || !navigator.onLine || !account()) return;
   syncing = true;
-  try { for (const r of await dbAll()) if (r.status !== 'uploaded') await uploadRecord(r, false); } finally { syncing = false; }
+  try { for (const r of await dbAll()) if (r.status === 'pending' || r.status === 'error') await uploadRecord(r, false); } finally { syncing = false; }
 }
 
 /* ===== ทะเบียน ===== */
-const STATUS = { uploaded: 'อัปโหลดแล้ว', pending: 'รออัปโหลด', error: 'อัปโหลดไม่สำเร็จ' };
+const STATUS = { uploaded: 'อัปโหลดแล้ว', shared: 'ส่งออกแล้ว', pending: 'ยังไม่ได้ส่ง', error: 'อัปโหลดไม่สำเร็จ' };
 async function renderList() {
   const q = $('#q').value.trim().toLowerCase(), box = $('#recs');
   const all = (await dbAll()).sort((a, b) => b.created.localeCompare(a.created))
@@ -392,29 +392,39 @@ async function renderList() {
   for (const r of all) {
     const acts = el('div', { className: 'acts' },
       el('button', { className: 'small', textContent: 'เปิด PDF', onclick: () => window.open(URL.createObjectURL(r.pdf), '_blank') }),
-      el('button', { className: 'small', textContent: 'แชร์/บันทึก', onclick: () => shareRecord(r) }));
-    if (r.status !== 'uploaded') acts.append(el('button', { className: 'small primary', textContent: 'อัปโหลด', onclick: () => uploadRecord(r, true) }));
+      el('button', { className: 'small' + (!msalApp && r.status === 'pending' ? ' primary' : ''), textContent: 'แชร์/บันทึก', onclick: () => shareRecord(r) }));
+    if (r.status !== 'uploaded' && msalApp) acts.append(el('button', { className: 'small primary', textContent: 'อัปโหลด', onclick: () => uploadRecord(r, true) }));
     acts.append(el('button', { className: 'small danger', textContent: 'ลบ', onclick: async () => {
-      const extra = r.status === 'uploaded' ? '\n(ไฟล์ใน OneDrive ยังอยู่)' : '\n(ไฟล์นี้ยังไม่ได้อัปโหลด จะหายถาวร)';
+      const extra = r.status === 'pending' || r.status === 'error' ? '\n(ไฟล์นี้ยังไม่ได้ส่งเข้า OneDrive จะหายถาวร)' : '\n(ไฟล์ที่ส่งเข้า OneDrive แล้วยังอยู่)';
       if (confirm(`ลบรายการนี้ออกจากเครื่อง?\n${r.fileName}${extra}`)) { await dbDel(r.id); renderList(); }
     } }));
     box.append(el('div', { className: 'rec' },
       el('div', { className: 'name', textContent: r.uploadedName || r.fileName }),
-      el('div', { className: 'meta' }, `${r.dateText} · ${r.images} รูป · `, el('span', { className: 'badge ' + r.status, textContent: STATUS[r.status] }),
+      el('div', { className: 'meta' }, `${r.dateText} · ${r.images} รูป · `, el('span', { className: 'badge ' + (r.status === 'shared' ? 'uploaded' : r.status), textContent: STATUS[r.status] }),
         r.error ? el('div', { textContent: r.error }) : ''),
       acts));
   }
 }
-async function shareRecord(r) {
+async function shareRecord(r, auto) {
   const file = new File([r.pdf], r.fileName, { type: 'application/pdf' });
-  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: r.fileName }); } catch {} return; }
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: r.fileName });
+      if (r.status !== 'uploaded') { r.status = 'shared'; r.error = ''; await dbPut(r); }
+      toast('ส่งออกแล้ว ✓ ตรวจในแอพ OneDrive ว่าไฟล์ขึ้นครบ', 5000);
+    } catch (e) {
+      if (e.name === 'AbortError') { if (auto) toast('ยังไม่ได้ส่ง ไฟล์อยู่ในทะเบียน กด "แชร์/บันทึก" ได้ภายหลัง', 6000); }
+      else toast('เปิดเมนูแชร์ไม่ได้ กด "แชร์/บันทึก" ในทะเบียนอีกครั้ง', 6000);
+    }
+    renderList(); return;
+  }
   const a = el('a', { href: URL.createObjectURL(r.pdf), download: r.fileName }); a.click();
 }
 
 /* ===== ตั้งค่า + นำทาง ===== */
 function renderSettings() {
   const a = account();
-  $('#acct').textContent = !cfg.clientId ? 'ยังไม่ได้ใส่ Client ID (ดูไฟล์ "ขั้นตอนติดตั้ง")'
+  $('#acct').textContent = !cfg.clientId ? 'ไม่ได้ผูกบัญชี: แอพจะเปิดเมนูแชร์ให้เลือก OneDrive หลังสร้าง PDF (ไม่ต้องตั้งค่าหน้านี้)'
     : a ? `เข้าสู่ระบบแล้ว: ${a.username}` : 'ยังไม่ได้เข้าสู่ระบบ';
   $('#b-login').disabled = !msalApp || !!a; $('#b-logout').disabled = !a;
   $('#s-client').value = cfg.clientId; $('#s-root').value = cfg.root; $('#s-redirect').textContent = REDIRECT;
